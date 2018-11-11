@@ -150,7 +150,9 @@ void sendSensorValue() {
   float temperature = bme.readTemperature();
   float pressure = bme.readPressure() / 100.0F;
   float humidity = bme.readHumidity();
-
+  
+  // Fieldを一個ずつ書き込む方式は、無料枠の更新間隔制限(15秒)のため失敗する
+  // setFieldで書き込む値をすべてセットした後、writeFields()を使ってまとめて書き込む
 //  int code = ThingSpeak.writeField(myChannelID, FIELD_NUMBER_TEMPERATURE, temperature, myWriteAPIKey);
 //  checkReturnCode(FIELD_NUMBER_TEMPERATURE, code);
 //  code = ThingSpeak.writeField(myChannelID, FIELD_NUMBER_PRESSURE, pressure, myWriteAPIKey);
