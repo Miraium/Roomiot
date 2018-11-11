@@ -3,6 +3,7 @@
 #include <ESP8266WiFi.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
+#include <ThingSpeak.h>
 
 #include "MyConst.h"
 
@@ -27,8 +28,16 @@ WiFiClient client;
 #define SSID MY_SSID
 #define PASS MY_PASS
 
-unsigned long delayTime;
-#define DELAY_TIME 15000
+//===================================================
+// ThingSpeak
+//===================================================
+#define DELAY_TIME 20000
+unsigned long delayTime = DELAY_TIME;
+unsigned long myChannelID = MY_THINGSPEAK_CHANNEL_ID;
+const char * myWriteAPIKey = MY_THINGSPEAK_APIKEY_WRITE;
+#define FIELD_NUMBER_TEMPERATURE 1
+#define FIELD_NUMBER_PRESSURE 2
+#define FIELD_NUMBER_HUMIDITY 3
 
 void setup()
 {
@@ -47,7 +56,8 @@ void setup()
   Serial.println("Start Setup WiFi");
   setupWifi();
 
-  delayTime = DELAY_TIME;
+  // ThingSpeak - 設定
+  setupThingSpeak();
 }
 
 void setupBME280() {
@@ -67,22 +77,36 @@ void setupWifi() {
   Serial.print("Connecting to ");
   Serial.println(SSID);
 
-  WiFi.begin(SSID, PASS);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
+  tryWifiConnection();
+}
 
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
+// loop()中での再接続用に関数にしてある
+void tryWifiConnection(){
+  Serial.print("Attempting to connect to SSID: ");
+  Serial.println(SSID);
+  while(WiFi.status() != WL_CONNECTED){
+    WiFi.begin(SSID, PASS);
+    Serial.print(".");
+    delay(500);
+  } 
+  Serial.println("\nConnected.");
+  Serial.print("Local IP address: ");
   Serial.println(WiFi.localIP());
 }
 
+void setupThingSpeak(){
+  ThingSpeak.begin(client);
+  // ThingSpeak(無料枠)の仕様に合わせて間隔を設定
+  delayTime = DELAY_TIME;
+}
+
 void loop() { 
-//    printValues();
-    printValuesCompact();
-    delay(delayTime);
+//  printValues();
+  printValuesCompact();
+
+  sendSensorValue();
+
+  delay(delayTime);
 }
 
 
@@ -114,4 +138,41 @@ void printValuesCompact() {
 
     Serial.print(bme.readHumidity());
     Serial.println();
+}
+
+void sendSensorValue() {
+  // Connect or reconnect to WiFi
+  if(WiFi.status() != WL_CONNECTED){
+    tryWifiConnection();
+  }
+
+  // Get sensor value
+  float temperature = bme.readTemperature();
+  float pressure = bme.readPressure() / 100.0F;
+  float humidity = bme.readHumidity();
+
+//  int code = ThingSpeak.writeField(myChannelID, FIELD_NUMBER_TEMPERATURE, temperature, myWriteAPIKey);
+//  checkReturnCode(FIELD_NUMBER_TEMPERATURE, code);
+//  code = ThingSpeak.writeField(myChannelID, FIELD_NUMBER_PRESSURE, pressure, myWriteAPIKey);
+//  checkReturnCode(FIELD_NUMBER_PRESSURE, code);
+//  code = ThingSpeak.writeField(myChannelID, FIELD_NUMBER_HUMIDITY, humidity, myWriteAPIKey);
+//  checkReturnCode(FIELD_NUMBER_HUMIDITY, code);
+
+  // Call setField() for each of the fields you want to write first.
+  int code = ThingSpeak.setField(FIELD_NUMBER_TEMPERATURE, temperature);
+  code = ThingSpeak.setField(FIELD_NUMBER_PRESSURE, pressure);
+  code = ThingSpeak.setField(FIELD_NUMBER_HUMIDITY, humidity);
+  // Write a multi-field update.
+  code = ThingSpeak.writeFields(myChannelID, myWriteAPIKey);
+  checkReturnCode(code);
+  
+}
+
+void checkReturnCode(int code) {
+  if(code == 200){
+    Serial.println("Channel update successful.");
+  }
+  else{
+    Serial.println("Problem updating channel. HTTP error code " + String(code));
+  }
 }
